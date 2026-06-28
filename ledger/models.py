@@ -1,5 +1,18 @@
+from django.contrib.auth.models import User
 from django.db import models
 from django.core.exceptions import ValidationError
+
+
+class Merchant(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='merchant')
+    business_name = models.CharField(max_length=200)
+    phone = models.CharField(max_length=20)
+    platform_fee_percent = models.DecimalField(max_digits=5, decimal_places=2, default=5.00)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.business_name
+
 
 class Account(models.Model):
     ACCOUNT_TYPES = [
@@ -8,7 +21,6 @@ class Account(models.Model):
         ('REVENUE', 'Revenue'),
         ('EXPENSE', 'Expense'),
     ]
-
     name = models.CharField(max_length=100, unique=True)
     account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
     balance = models.DecimalField(max_digits=20, decimal_places=2, default=0.00)
@@ -26,7 +38,6 @@ class Transaction(models.Model):
         ('REFUND', 'Refund'),
         ('FEE', 'Platform Fee Deduction'),
     ]
-
     reference_id = models.CharField(max_length=100, unique=True)
     reference_type = models.CharField(max_length=20, choices=REFERENCE_TYPES)
     amount = models.DecimalField(max_digits=20, decimal_places=2)
@@ -42,7 +53,6 @@ class JournalEntry(models.Model):
         ('DEBIT', 'Debit'),
         ('CREDIT', 'Credit'),
     ]
-
     transaction = models.ForeignKey(Transaction, on_delete=models.PROTECT, related_name='entries')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='entries')
     entry_type = models.CharField(max_length=10, choices=ENTRY_TYPES)

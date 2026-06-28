@@ -1,132 +1,87 @@
 from decimal import Decimal
 from django.db import transaction as db_transaction
 from django.db.models import F
-from .models import Account, Transaction, JournalEntry
-
-
-class SplitRule:
-    def __init__(self, account_name: str, percentage: Decimal, account_type: str):
-        self.account_name = account_name
-        self.percentage = percentage
-        self.account_type = account_type
+from .models import Account, Transaction, JournalEntry, Merchant
 
 
 class SplitEngine:
-    """
-    The core split engine. Takes a payment and divides it across accounts
-    using double-entry bookkeeping.
-    """
+    """Core double-entry split engine."""
 
     @staticmethod
-    def execute_payment_split(
-        reference_id: str,
-        total_amount: Decimal,
-        pool_account_name: str = "M-Pesa Pool Account",
-        split_rules: list[SplitRule] | None = None,
-        description: str = "",
-    ) -> dict:
+    def merchant_split(merchant: Merchant, reference_id: str, amount: Decimal, description: str = "") -> dict:
         """
-        Execute a payment split.
-
-        Example split_rules:
-            SplitRule("FreshWash Earnings", Decimal('95'), "LIABILITY")
-            SplitRule("Platform Fees", Decimal('5'), "REVENUE")
+        Split a payment for a specific merchant.
+        Auto-creates merchant accounts and deducts platform fee.
         """
-        if split_rules is None:
-            split_rules = []
+        fee_pct = merchant.platform_fee_percent / Decimal('100')
+        fee_amount = (amount * fee_pct).quantize(Decimal('0.01'))
+        merchant_amount = amount - fee_amount
 
-        total_pct = sum(r.percentage for r in split_rules)
-        if total_pct != Decimal('100'):
-            raise ValueError(f"Split percentages must sum to 100, got {total_pct}")
-
-        # Get or create the pool account
-        pool_account, _ = Account.objects.get_or_create(
-            name=pool_account_name,
-            defaults={'account_type': 'ASSET', 'balance': Decimal('0.00')}
+        pool_acc, _ = Account.objects.get_or_create(
+            name=f"Pool_{merchant.id}", defaults={'account_type': 'ASSET', 'balance': Decimal('0.00')}
+        )
+        earnings_acc, _ = Account.objects.get_or_create(
+            name=f"Earnings_{merchant.id}", defaults={'account_type': 'LIABILITY', 'balance': Decimal('0.00')}
+        )
+        fee_acc, _ = Account.objects.get_or_create(
+            name="Platform_Fees", defaults={'account_type': 'REVENUE', 'balance': Decimal('0.00')}
         )
 
-        # Get or create split target accounts
-        target_accounts = []
-        for rule in split_rules:
-            account, _ = Account.objects.get_or_create(
-                name=rule.account_name,
-                defaults={'account_type': rule.account_type, 'balance': Decimal('0.00')}
-            )
-            target_accounts.append((account, rule.percentage))
-
-        # Create the transaction record
         txn = Transaction.objects.create(
-            reference_id=reference_id,
-            reference_type='PAYMENT_IN',
-            amount=total_amount,
-            description=description,
+            reference_id=reference_id, reference_type='PAYMENT_IN',
+            amount=amount, description=description,
         )
 
         with db_transaction.atomic():
-            # Debit the pool account (money comes in)
-            JournalEntry.objects.create(
-                transaction=txn,
-                account=pool_account,
-                entry_type='DEBIT',
-                amount=total_amount,
-            )
-            Account.objects.filter(pk=pool_account.pk).update(balance=F('balance') + total_amount)
+            JournalEntry.objects.create(transaction=txn, account=pool_acc, entry_type='DEBIT', amount=amount)
+            JournalEntry.objects.create(transaction=txn, account=earnings_acc, entry_type='CREDIT', amount=merchant_amount)
+            JournalEntry.objects.create(transaction=txn, account=fee_acc, entry_type='CREDIT', amount=fee_amount)
+            for acc, delta in [(pool_acc, amount), (earnings_acc, merchant_amount), (fee_acc, fee_amount)]:
+                Account.objects.filter(pk=acc.pk).update(balance=F('balance') + delta)
 
-            # Credit each target account
-            for account, pct in target_accounts:
-                split_amount = (total_amount * pct / Decimal('100')).quantize(Decimal('0.01'))
-                JournalEntry.objects.create(
-                    transaction=txn,
-                    account=account,
-                    entry_type='CREDIT',
-                    amount=split_amount,
-                )
-                Account.objects.filter(pk=account.pk).update(balance=F('balance') + split_amount)
-
-        return {
-            'transaction_id': txn.id,
-            'reference_id': txn.reference_id,
-            'total_amount': str(total_amount),
-            'status': 'completed',
-        }
+        return {"reference_id": reference_id, "total": str(amount), "merchant_earns": str(merchant_amount), "platform_fee": str(fee_amount)}
 
     @staticmethod
-    def execute_refund(
-        original_reference_id: str,
-        refund_reference_id: str,
-        description: str = "",
-    ) -> dict:
-        """Reverse a payment by flipping each journal entry by its own amount."""
-        original_txn = Transaction.objects.get(reference_id=original_reference_id)
-        entries = JournalEntry.objects.filter(transaction=original_txn)
+    def merchant_withdraw(merchant: Merchant, reference_id: str) -> dict:
+        """
+        Merchant withdraws available earnings. Moves liability to zero.
+        In production this would also call M-Pesa B2C API.
+        """
+        earnings_acc = Account.objects.get(name=f"Earnings_{merchant.id}")
+        amount = earnings_acc.balance
+        if amount <= 0:
+            raise ValueError("No balance to withdraw")
 
-        if not entries.exists():
-            raise ValueError(f"No entries found for transaction {original_reference_id}")
+        pool_acc = Account.objects.get(name=f"Pool_{merchant.id}")
 
-        total_refund = original_txn.amount
-        refund_txn = Transaction.objects.create(
-            reference_id=refund_reference_id,
-            reference_type='REFUND',
-            amount=total_refund,
-            description=description,
+        txn = Transaction.objects.create(
+            reference_id=reference_id, reference_type='SETTLEMENT',
+            amount=amount, description=f"Settlement to {merchant.business_name}",
         )
 
         with db_transaction.atomic():
-            for entry in entries:
-                reversed_type = 'CREDIT' if entry.entry_type == 'DEBIT' else 'DEBIT'
-                JournalEntry.objects.create(
-                    transaction=refund_txn,
-                    account=entry.account,
-                    entry_type=reversed_type,
-                    amount=entry.amount,
-                )
-                Account.objects.filter(pk=entry.account.pk).update(
-                    balance=F('balance') - entry.amount
-                )
+            JournalEntry.objects.create(transaction=txn, account=earnings_acc, entry_type='DEBIT', amount=amount)
+            JournalEntry.objects.create(transaction=txn, account=pool_acc, entry_type='CREDIT', amount=amount)
+            Account.objects.filter(pk=earnings_acc.pk).update(balance=F('balance') - amount)
+            Account.objects.filter(pk=pool_acc.pk).update(balance=F('balance') - amount)
 
+        return {"reference_id": reference_id, "settled": str(amount), "status": "paid_out"}
+
+    @staticmethod
+    def merchant_dashboard(merchant: Merchant) -> dict:
+        """Returns user-friendly dashboard data for a merchant."""
+        try:
+            earnings = Account.objects.get(name=f"Earnings_{merchant.id}")
+            pool = Account.objects.get(name=f"Pool_{merchant.id}")
+        except Account.DoesNotExist:
+            return {"business": merchant.business_name, "total_sales": "0.00", "available": "0.00", "fees_paid": "0.00"}
+
+        fee_acc = Account.objects.get(name="Platform_Fees")
+        total_sales = pool.balance + earnings.balance
         return {
-            'transaction_id': refund_txn.id,
-            'reference_id': refund_txn.reference_id,
-            'amount': str(total_refund),
-            'status': 'refunded',
+            "business": merchant.business_name,
+            "total_sales": str(total_sales),
+            "available": str(earnings.balance),
+            "fees_paid": str(fee_acc.balance),
+            "currency": "KES",
         }

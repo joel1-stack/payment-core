@@ -1,11 +1,17 @@
 from django.contrib import admin
-from .models import Account, Transaction, JournalEntry
+from .models import Account, Transaction, JournalEntry, Merchant
 
 
 class JournalEntryInline(admin.TabularInline):
     model = JournalEntry
     readonly_fields = ['created_at']
     extra = 0
+
+
+@admin.register(Merchant)
+class MerchantAdmin(admin.ModelAdmin):
+    list_display = ['business_name', 'phone', 'platform_fee_percent', 'created_at']
+    search_fields = ['business_name', 'phone']
 
 
 @admin.register(Account)

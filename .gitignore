@@ -5,3 +5,11 @@ db.sqlite3
 .DS_Store
 *.log
 .env
+
+.claude/
+.amazonq/
+test_split.py
+test_api.py
+
+# gstack (global install)
+.amazonq/rules/gstack.md
