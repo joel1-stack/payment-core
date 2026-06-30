@@ -23,4 +23,7 @@ urlpatterns = [
     path('webhooks/mpesa/c2b/', mpesa.c2b_callback, name='mpesa-c2b'),
     path('webhooks/mpesa/b2c/', mpesa.b2c_callback, name='mpesa-b2c'),
     path('webhooks/mpesa/timeout/', mpesa.timeout_callback, name='mpesa-timeout'),
+
+    # Universal webhook
+    path('webhooks/universal/<str:provider_name>/', views.universal_webhook, name='universal-webhook'),
 ]

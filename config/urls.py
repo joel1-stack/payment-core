@@ -19,7 +19,8 @@ from django.urls import path, include
 from ledger import views as ledger_views
 
 urlpatterns = [
-    path('', ledger_views.index, name='index'),
+    path('', ledger_views.landing, name='landing'),
+    path('engine/', ledger_views.index, name='index'),
     path('admin/', admin.site.urls),
     path('api/', include('ledger.urls')),
 ]

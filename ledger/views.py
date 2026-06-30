@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from django.shortcuts import render
 from django.http import JsonResponse
@@ -9,9 +10,13 @@ from .models import Account, Transaction, JournalEntry, Merchant
 from .serializers import AccountSerializer, TransactionSerializer, JournalEntrySerializer
 from .services import SplitEngine
 from providers.mock_provider import MockProvider
+from providers import get_provider
 
 
-# ── HTML page ──
+# ── HTML pages ──
+
+def landing(request):
+    return render(request, 'ledger/landing.html')
 
 def index(request):
     return render(request, 'ledger/index.html')
@@ -155,6 +160,43 @@ def balances(request):
             "ledger_balanced": True,
             "currency": "USD",
         })
+
+
+# ── Universal webhook ──
+
+@csrf_exempt
+def universal_webhook(request, provider_name):
+    """
+    POST /api/webhooks/universal/<provider_name>/
+    Single webhook endpoint for all providers.
+    Dispatches to the right provider's parse_callback, then fires the ledger.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    provider = get_provider(provider_name)
+    try:
+        payload = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    result = provider.parse_callback(payload)
+    if not result['success']:
+        return JsonResponse({'status': 'failed', 'reason': result}, status=200)
+
+    merchant = Merchant.objects.filter(
+        user__username=result.get('our_reference', '')
+    ).first()
+    if not merchant:
+        return JsonResponse({'status': 'no_merchant', 'reference': result.get('our_reference')})
+
+    ledger_result = SplitEngine.merchant_split(
+        merchant,
+        result['reference'],
+        result['amount'],
+        f"Auto via {provider_name}",
+    )
+    return JsonResponse({'status': 'credited', 'ledger': ledger_result})
 
 
 # ── Health ──

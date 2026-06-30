@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payments Core — Architecture</title>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 40px 20px; }
+        .container { max-width: 800px; margin: auto; }
+        h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .subtitle { color: #94a3b8; font-size: 1.1rem; margin-bottom: 40px; }
+        .problem-box { background: #450a0a; border: 1px solid #7f1d1d; padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+        .solution-box { background: #052e16; border: 1px solid #166534; padding: 20px; border-radius: 8px; margin-bottom: 40px; }
+        h3 { margin-top: 0; }
+        code { background: #1e293b; padding: 2px 6px; border-radius: 4px; color: #60a5fa; font-size: 0.9rem; }
+        .flow-diagram { 
+            background: #1e293b; padding: 20px; border-radius: 8px; 
+            font-family: monospace; text-align: center; 
+            margin-bottom: 40px; line-height: 1.8; color: #94a3b8;
+        }
+        .flow-diagram span { color: #4ade80; font-weight: bold; }
+        .btn-primary { background: #2563eb; color: white; padding: 15px 40px; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-primary:hover { background: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#9889; Payments Core</h1>
+        <p class="subtitle">An immutable, double-entry ledger for multi-party payment splits.</p>
+
+        <div class="problem-box">
+            <h3>&#10060; The Problem</h3>
+            <p>Most marketplaces and SaaS platforms split payments using simple database updates. If a network glitch causes a payment gateway (Stripe, M-Pesa) to send the same webhook twice, the merchant gets double-credited. If a refund happens, the ledger breaks.</p>
+        </div>
+
+        <div class="solution-box">
+            <h3>&#9989; The Solution</h3>
+            <p>This engine treats every payment like a bank. It uses <code>Double-Entry Bookkeeping</code>. Every cent moved is recorded as a <code>DEBIT</code> in one account and a <code>CREDIT</code> in another. If Debits don't exactly equal Credits, the transaction is rejected.</p>
+        </div>
+
+        <div class="flow-diagram">
+            <span>1. Payment Rail</span> (M-Pesa / Stripe / Card)<br>
+            &#8595;<br>
+            <span>2. Webhook Received</span> (Reference ID captured)<br>
+            &#8595;<br>
+            <span>3. Idempotency Check</span> (Duplicate? Reject.)<br>
+            &#8595;<br>
+            <span>4. Ledger Engine</span> (Debit Float / Credit Merchant / Credit Platform)<br>
+            &#8595;<br>
+            <span>5. Verify Balance</span> (Math must equal zero)<br>
+            &#8595;<br>
+            <span>6. Settlement Queue</span> (Ready for Bank Payout)
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/engine/" class="btn-primary">Enter Live Engine Demo &rarr;</a>
+        </div>
+    </div>
+</body>
+</html>
