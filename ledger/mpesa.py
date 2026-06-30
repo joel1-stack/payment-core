@@ -143,7 +143,7 @@ def b2c_payment(phone: str, amount: Decimal, merchant: Merchant, reference: str)
 
     payload = {
         "InitiatorName": settings.MPESA_INITIATOR,
-        "SecurityCredential": settings.MPESA_SECURITY_CRED,
+        "SecurityCredential": settings.MPESA_INITIATOR_PASS,
         "CommandID": "BusinessPayment",
         "Amount": str(int(amount)),
         "PartyA": settings.MPESA_SHORTCODE,
@@ -189,7 +189,7 @@ def pull_transactions(shortcode: str, date: str = None) -> list:
 
     payload = {
         "Initiator": settings.MPESA_INITIATOR,
-        "SecurityCredential": settings.MPESA_SECURITY_CRED,
+        "SecurityCredential": settings.MPESA_INITIATOR_PASS,
         "CommandID": "TransactionStatusQuery",
         "TransactionID": "",
         "PartyA": shortcode,

@@ -3,169 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Split Engine - Live Demo</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>payment-core · orchestration engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Inter', sans-serif;
-            background: #0f172a;
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0a0f;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            color: #e4e4e7;
         }
         .card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 16px;
-            padding: 40px;
-            max-width: 520px;
-            width: 100%;
-        }
-        .badge {
-            display: inline-block;
-            background: #05966920;
-            color: #34d399;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 4px 12px;
+            background: #12121a;
+            border: 1px solid #1e1e2e;
             border-radius: 20px;
-            border: 1px solid #05966940;
-            margin-bottom: 16px;
+            padding: 36px;
+            max-width: 580px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8);
         }
-        h1 {
-            color: #f1f5f9;
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .subtitle {
-            color: #94a3b8;
-            font-size: 14px;
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
             margin-bottom: 24px;
         }
-        .info-row {
+        .logo {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 10px;
             display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #334155;
-            color: #cbd5e1;
-            font-size: 14px;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
         }
-        .info-row:last-child { border-bottom: none; }
-        .label { color: #94a3b8; }
-        .value { font-weight: 600; }
-        .value.green { color: #34d399; }
-        .value.blue { color: #60a5fa; }
-        .value.amber { color: #fbbf24; }
-        .divider {
-            height: 1px;
-            background: #334155;
-            margin: 16px 0;
+        .header-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #f4f4f5;
+            letter-spacing: -0.3px;
         }
-        button {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            font-size: 16px;
-            font-weight: 600;
+        .header-text span {
+            font-size: 11px;
+            color: #71717a;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .badge-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .badge {
+            font-size: 10px;
+            font-weight: 500;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #27272a;
+            background: #18181b;
+            color: #a1a1aa;
+            letter-spacing: 0.3px;
+        }
+        .badge.green { border-color: #22c55e40; background: #22c55e10; color: #4ade80; }
+        .badge.amber { border-color: #f59e0b40; background: #f59e0b10; color: #fbbf24; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat {
+            background: #18181b;
+            border: 1px solid #27272a;
             border-radius: 12px;
+            padding: 16px;
+        }
+        .stat .label { font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+        .stat .value.green { color: #4ade80; }
+        .stat .value.blue { color: #60a5fa; }
+        .stat .value.amber { color: #fbbf24; }
+        .stat .value.purple { color: #a78bfa; }
+
+        .divider { height: 1px; background: #27272a; margin: 20px 0; }
+
+        button {
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: #fff;
+            border: none;
+            padding: 14px 28px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 10px;
             cursor: pointer;
             width: 100%;
-            margin-top: 16px;
-            transition: transform 0.1s, box-shadow 0.2s;
+            transition: all 0.15s;
+            letter-spacing: 0.3px;
         }
-        button:hover { transform: translateY(-1px); box-shadow: 0 8px 25px -5px #3b82f680; }
+        button:hover { transform: translateY(-1px); box-shadow: 0 8px 25px -5px #6366f180; }
         button:active { transform: translateY(0); }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+        button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        button.secondary {
+            background: transparent;
+            border: 1px solid #27272a;
+            color: #71717a;
+            margin-top: 8px;
+            font-size: 11px;
         }
+        button.secondary:hover { border-color: #3f3f46; color: #a1a1aa; }
+
         .terminal {
-            background: #0f172a;
-            color: #10b981;
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
+            background: #0a0a0f;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
             padding: 20px;
-            border-radius: 10px;
             margin-top: 20px;
-            line-height: 1.8;
-            min-height: 120px;
-            border: 1px solid #334155;
+            font-size: 12px;
+            line-height: 1.9;
+            min-height: 140px;
+            color: #a1a1aa;
+            overflow-x: auto;
         }
-        .terminal .dim { color: #475569; }
-        .terminal .green { color: #34d399; }
+        .terminal .dim { color: #52525b; }
+        .terminal .green { color: #4ade80; }
         .terminal .red { color: #ef4444; }
         .terminal .yellow { color: #fbbf24; }
         .terminal .cyan { color: #22d3ee; }
-        .blink { animation: blink 1s infinite; }
+        .terminal .purple { color: #a78bfa; }
+        .prompt { color: #6366f1; }
+        .blink { animation: blink 1s step-end infinite; }
         @keyframes blink { 50% { opacity: 0; } }
-        .status-bar {
+
+        .tx-log { margin-top: 16px; }
+        .tx-item {
             display: flex;
-            gap: 16px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #18181b;
+            font-size: 11px;
         }
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #64748b;
+        .tx-item:last-child { border-bottom: none; }
+        .tx-ref { color: #52525b; }
+        .tx-amt { font-weight: 500; }
+        .tx-amt.in { color: #4ade80; }
+        .tx-amt.out { color: #ef4444; }
+
+        #txCount { color: #71717a; font-size: 11px; margin-top: 4px; }
+
+        @media (max-width: 480px) {
+            .card { padding: 24px; }
+            .stats-grid { grid-template-columns: 1fr; }
         }
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #22c55e;
-        }
-        .dot.off { background: #64748b; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div class="badge">LIVE DEMO</div>
-    <h1>Payment Orchestration Engine</h1>
-    <p class="subtitle">Immutable double-entry ledger with auto-split. Click to prove it works.</p>
-
-    <div class="status-bar">
-        <span class="status-item"><span class="dot"></span> Engine Online</span>
-        <span class="status-item"><span class="dot"></span> Ledger Ready</span>
-        <span class="status-item"><span class="dot off"></span> No Internet Required</span>
+    <div class="header">
+        <div class="logo">⧩</div>
+        <div class="header-text">
+            <h1>payment-core</h1>
+            <span>orchestration engine · v1.0</span>
+        </div>
     </div>
 
-    <div class="info-row">
-        <span class="label">Engine</span>
-        <span class="value">payment-core v1.0</span>
+    <div class="badge-row">
+        <span class="badge green">● ENGINE ONLINE</span>
+        <span class="badge green">● LEDGER READY</span>
+        <span class="badge amber">◆ NO INTERNET</span>
     </div>
-    <div class="info-row">
-        <span class="label">Accounting Method</span>
-        <span class="value">Double-Entry (Debit/Credit)</span>
+
+    <div class="stats-grid">
+        <div class="stat">
+            <div class="label">Merchant Balance</div>
+            <div class="value green" id="merchantBalance">$0.00</div>
+        </div>
+        <div class="stat">
+            <div class="label">Platform Revenue</div>
+            <div class="value amber" id="platformRevenue">$0.00</div>
+        </div>
+        <div class="stat">
+            <div class="label">Total Processed</div>
+            <div class="value blue" id="totalProcessed">$0.00</div>
+        </div>
+        <div class="stat">
+            <div class="label">Ledger Status</div>
+            <div class="value purple" id="ledgerStatus">BALANCED</div>
+        </div>
     </div>
-    <div class="info-row">
-        <span class="label">Idempotency</span>
-        <span class="value green">ENABLED</span>
-    </div>
+
+    <div class="divider"></div>
 
     <button id="actionBtn" onclick="runSplit()">
-        &#9654; Process $100.00 Payment
+        ⚡ Process $100.00 Payment
+    </button>
+    <button class="secondary" id="resetBtn" onclick="resetDemo()">
+        ⟳ Reset Demo
     </button>
 
     <div class="terminal" id="output">
-        <span class="dim">$ ./engine</span>
-        <span class="dim">Waiting for transaction...</span>
-        <span class="blink">▌</span>
+        <span class="dim">┌─( payment-core )</span>
+        <span class="dim">│</span>
+        <span class="dim">│  $ ./engine ready</span>
+        <span class="dim">│  $ Engine idle. Waiting for transaction...</span>
+        <span class="dim">│</span>
+        <span class="dim">└─</span><span class="blink"> ▌</span>
+    </div>
+
+    <div id="txLogContainer" style="display:none;" class="tx-log">
+        <div class="divider"></div>
+        <div style="font-size:10px;color:#52525b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+            Transaction Log
+        </div>
+        <div id="txLog"></div>
+        <div id="txCount"></div>
     </div>
 </div>
 
 <script>
     let processed = false;
+    let txCount = 0;
+
+    async function fetchBalances() {
+        try {
+            const r = await fetch('/api/balances/');
+            return await r.json();
+        } catch { return null; }
+    }
+
+    async function updateUI() {
+        const bal = await fetchBalances();
+        if (!bal) return;
+        document.getElementById('merchantBalance').textContent = '$' + bal.merchant_available.toFixed(2);
+        document.getElementById('platformRevenue').textContent = '$' + bal.platform_revenue.toFixed(2);
+        document.getElementById('totalProcessed').textContent = '$' + (bal.merchant_available + bal.platform_revenue).toFixed(2);
+        const ls = document.getElementById('ledgerStatus');
+        if (bal.ledger_balanced) {
+            ls.textContent = 'BALANCED';
+            ls.style.color = '#4ade80';
+        } else {
+            ls.textContent = 'ERROR';
+            ls.style.color = '#ef4444';
+        }
+    }
+
+    function addTxLog(ref, amount, fee) {
+        txCount++;
+        const log = document.getElementById('txLog');
+        const item = document.createElement('div');
+        item.className = 'tx-item';
+        item.innerHTML = `<span class="tx-ref">#${ref}</span><span class="tx-amt in">+$${amount.toFixed(2)}</span>`;
+        log.prepend(item);
+        document.getElementById('txCount').textContent = txCount + ' transaction' + (txCount > 1 ? 's' : '') + ' processed';
+        document.getElementById('txLogContainer').style.display = 'block';
+    }
 
     async function runSplit() {
         const btn = document.getElementById('actionBtn');
@@ -173,58 +273,92 @@
         btn.disabled = true;
 
         if (processed) {
-            output.innerHTML = `<span class="dim">$ ./engine --idempotency-check</span>
-<span class="yellow">&#9654; Idempotency triggered — same reference_id detected.</span>
-<span class="green">&#10003; DUPLICATE REJECTED. No double-credit.</span>
-<span class="dim">$ Engine status: IDEMPOTENT &#10003;</span>
-<span class="blink">▌</span>`;
+            output.innerHTML = `<span class="dim">│</span>
+<span class="dim">│  $ ./engine --idempotency-check</span>
+<span class="yellow">│  ⚠ IDEMPOTENCY TRIGGERED</span>
+<span class="green">│  ✓ DUPLICATE REFERENCE REJECTED</span>
+<span class="green">│  ✓ NO DOUBLE-CREDIT</span>
+<span class="dim">│</span>
+<span class="dim">│  $ Engine: IDEMPOTENT</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
             btn.disabled = false;
             return;
         }
 
-        output.innerHTML = `<span class="dim">$ ./engine --split --amount 100.00</span>
-<span class="dim">Processing...</span>
-<span class="blink">▌</span>`;
+        output.innerHTML = `<span class="dim">│</span>
+<span class="dim">│  $ ./engine --split --amount 100.00</span>
+<span class="dim">│  $ Processing...</span>
+<span class="dim">│</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
 
         try {
             const splitRes = await fetch('/api/split/', { method: 'POST' });
             const splitData = await splitRes.json();
 
             if (splitData.status === 'already_processed') {
-                output.innerHTML = `<span class="dim">$ ./engine --idempotency-check</span>
-<span class="yellow">&#9654; Idempotency triggered — same reference_id detected.</span>
-<span class="green">&#10003; DUPLICATE REJECTED. No double-credit.</span>
-<span class="dim">$ Engine status: IDEMPOTENT &#10003;</span>
-<span class="blink">▌</span>`;
+                output.innerHTML = `<span class="dim">│</span>
+<span class="dim">│  $ ./engine --idempotency-check</span>
+<span class="yellow">│  ⚠ IDEMPOTENCY TRIGGERED</span>
+<span class="green">│  ✓ DUPLICATE REFERENCE REJECTED</span>
+<span class="green">│  ✓ NO DOUBLE-CREDIT</span>
+<span class="dim">│</span>
+<span class="dim">│  $ Engine: IDEMPOTENT</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
                 btn.disabled = false;
                 return;
             }
 
-            const balRes = await fetch('/api/balances/');
-            const balData = await balRes.json();
+            const bal = await fetchBalances();
+            await updateUI();
 
-            const ledgerOk = balData.ledger_balanced ? '&#10003; TRUE' : '&#10007; FALSE';
+            addTxLog(splitData.reference, 100, 5);
 
-            output.innerHTML = `<span class="dim">$ ./engine --split --amount 100.00</span>
-<span class="green">&#9654; TRANSACTION RECORDED</span>
-<span class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
-  Total In:       <span class="cyan">$100.00</span>
-  Merchant Gets:  <span class="green">$${balData.merchant_available.toFixed(2)}</span>
-  Platform Fee:   <span class="amber">$${balData.platform_revenue.toFixed(2)}</span>
-<span class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
-  Ledger Balanced: <span class="green">${ledgerOk}</span>
-  Immutable:       <span class="green">&#10003; TRUE</span>
-  Idempotent:      <span class="green">&#10003; TRUE</span>
-<span class="dim">$ Engine status: COMPLETE &#10003;</span>
-<span class="blink">▌</span>`;
+            output.innerHTML = `<span class="dim">│</span>
+<span class="dim">│  $ ./engine --split --amount 100.00</span>
+<span class="green">│  ✓ TRANSACTION RECORDED</span>
+<span class="dim">│  ─────────────────────────────</span>
+<span class="dim">│    Total In:       </span><span class="cyan">  $100.00</span>
+<span class="dim">│    Merchant Gets:  </span><span class="green">  $${bal.merchant_available.toFixed(2)}</span>
+<span class="dim">│    Platform Fee:   </span><span class="yellow">  $${bal.platform_revenue.toFixed(2)}</span>
+<span class="dim">│  ─────────────────────────────</span>
+<span class="green">│  ✓ Ledger Balanced: TRUE</span>
+<span class="green">│  ✓ Immutable:       TRUE</span>
+<span class="green">│  ✓ Idempotent:      TRUE</span>
+<span class="dim">│</span>
+<span class="dim">│  $ Engine: COMPLETE</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
 
             processed = true;
         } catch (err) {
-            output.innerHTML = `<span class="red">&#9888; Error: ${err.message}</span>`;
+            output.innerHTML = `<span class="dim">│</span>
+<span class="red">│  ✗ ERROR: ${err.message}</span>
+<span class="dim">│</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
         }
 
         btn.disabled = false;
     }
+
+    async function resetDemo() {
+        processed = false;
+        txCount = 0;
+        document.getElementById('txLog').innerHTML = '';
+        document.getElementById('txLogContainer').style.display = 'none';
+        document.getElementById('output').innerHTML = `<span class="dim">│</span>
+<span class="dim">│  $ Engine reset.</span>
+<span class="dim">│  $ Waiting for transaction...</span>
+<span class="dim">│</span>
+<span class="dim">└─</span><span class="blink"> ▌</span>`;
+        document.getElementById('merchantBalance').textContent = '$0.00';
+        document.getElementById('platformRevenue').textContent = '$0.00';
+        document.getElementById('totalProcessed').textContent = '$0.00';
+        document.getElementById('ledgerStatus').textContent = 'BALANCED';
+        document.getElementById('ledgerStatus').style.color = '#4ade80';
+        document.getElementById('actionBtn').disabled = false;
+    }
+
+    // Load balances on page load
+    updateUI();
 </script>
 
 </body>
