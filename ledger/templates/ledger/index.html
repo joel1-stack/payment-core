@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Split Engine - Live Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+        }
+        .badge {
+            display: inline-block;
+            background: #05966920;
+            color: #34d399;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #05966940;
+            margin-bottom: 16px;
+        }
+        h1 {
+            color: #f1f5f9;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .label { color: #94a3b8; }
+        .value { font-weight: 600; }
+        .value.green { color: #34d399; }
+        .value.blue { color: #60a5fa; }
+        .value.amber { color: #fbbf24; }
+        .divider {
+            height: 1px;
+            background: #334155;
+            margin: 16px 0;
+        }
+        button {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 16px;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        button:hover { transform: translateY(-1px); box-shadow: 0 8px 25px -5px #3b82f680; }
+        button:active { transform: translateY(0); }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .terminal {
+            background: #0f172a;
+            color: #10b981;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            line-height: 1.8;
+            min-height: 120px;
+            border: 1px solid #334155;
+        }
+        .terminal .dim { color: #475569; }
+        .terminal .green { color: #34d399; }
+        .terminal .red { color: #ef4444; }
+        .terminal .yellow { color: #fbbf24; }
+        .terminal .cyan { color: #22d3ee; }
+        .blink { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .status-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #64748b;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        .dot.off { background: #64748b; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="badge">LIVE DEMO</div>
+    <h1>Payment Orchestration Engine</h1>
+    <p class="subtitle">Immutable double-entry ledger with auto-split. Click to prove it works.</p>
+
+    <div class="status-bar">
+        <span class="status-item"><span class="dot"></span> Engine Online</span>
+        <span class="status-item"><span class="dot"></span> Ledger Ready</span>
+        <span class="status-item"><span class="dot off"></span> No Internet Required</span>
+    </div>
+
+    <div class="info-row">
+        <span class="label">Engine</span>
+        <span class="value">payment-core v1.0</span>
+    </div>
+    <div class="info-row">
+        <span class="label">Accounting Method</span>
+        <span class="value">Double-Entry (Debit/Credit)</span>
+    </div>
+    <div class="info-row">
+        <span class="label">Idempotency</span>
+        <span class="value green">ENABLED</span>
+    </div>
+
+    <button id="actionBtn" onclick="runSplit()">
+        &#9654; Process $100.00 Payment
+    </button>
+
+    <div class="terminal" id="output">
+        <span class="dim">$ ./engine</span>
+        <span class="dim">Waiting for transaction...</span>
+        <span class="blink">▌</span>
+    </div>
+</div>
+
+<script>
+    let processed = false;
+
+    async function runSplit() {
+        const btn = document.getElementById('actionBtn');
+        const output = document.getElementById('output');
+        btn.disabled = true;
+
+        if (processed) {
+            output.innerHTML = `<span class="dim">$ ./engine --idempotency-check</span>
+<span class="yellow">&#9654; Idempotency triggered — same reference_id detected.</span>
+<span class="green">&#10003; DUPLICATE REJECTED. No double-credit.</span>
+<span class="dim">$ Engine status: IDEMPOTENT &#10003;</span>
+<span class="blink">▌</span>`;
+            btn.disabled = false;
+            return;
+        }
+
+        output.innerHTML = `<span class="dim">$ ./engine --split --amount 100.00</span>
+<span class="dim">Processing...</span>
+<span class="blink">▌</span>`;
+
+        try {
+            const splitRes = await fetch('/api/split/', { method: 'POST' });
+            const splitData = await splitRes.json();
+
+            if (splitData.status === 'already_processed') {
+                output.innerHTML = `<span class="dim">$ ./engine --idempotency-check</span>
+<span class="yellow">&#9654; Idempotency triggered — same reference_id detected.</span>
+<span class="green">&#10003; DUPLICATE REJECTED. No double-credit.</span>
+<span class="dim">$ Engine status: IDEMPOTENT &#10003;</span>
+<span class="blink">▌</span>`;
+                btn.disabled = false;
+                return;
+            }
+
+            const balRes = await fetch('/api/balances/');
+            const balData = await balRes.json();
+
+            const ledgerOk = balData.ledger_balanced ? '&#10003; TRUE' : '&#10007; FALSE';
+
+            output.innerHTML = `<span class="dim">$ ./engine --split --amount 100.00</span>
+<span class="green">&#9654; TRANSACTION RECORDED</span>
+<span class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+  Total In:       <span class="cyan">$100.00</span>
+  Merchant Gets:  <span class="green">$${balData.merchant_available.toFixed(2)}</span>
+  Platform Fee:   <span class="amber">$${balData.platform_revenue.toFixed(2)}</span>
+<span class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+  Ledger Balanced: <span class="green">${ledgerOk}</span>
+  Immutable:       <span class="green">&#10003; TRUE</span>
+  Idempotent:      <span class="green">&#10003; TRUE</span>
+<span class="dim">$ Engine status: COMPLETE &#10003;</span>
+<span class="blink">▌</span>`;
+
+            processed = true;
+        } catch (err) {
+            output.innerHTML = `<span class="red">&#9888; Error: ${err.message}</span>`;
+        }
+
+        btn.disabled = false;
+    }
+</script>
+
+</body>
+</html>

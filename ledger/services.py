@@ -1,18 +1,32 @@
 from decimal import Decimal
 from django.db import transaction as db_transaction
-from django.db.models import F
+from django.db.models import F, Sum, Q
 from .models import Account, Transaction, JournalEntry, Merchant
 
 
 class SplitEngine:
-    """Core double-entry split engine."""
+    """Core double-entry split engine with idempotency and verification."""
 
     @staticmethod
     def merchant_split(merchant: Merchant, reference_id: str, amount: Decimal, description: str = "") -> dict:
         """
         Split a payment for a specific merchant.
-        Auto-creates merchant accounts and deducts platform fee.
+        Idempotent: same reference_id always yields same result (no double-credit).
         """
+        # Idempotency check — if this reference already exists, return its result
+        existing = Transaction.objects.filter(reference_id=reference_id).first()
+        if existing:
+            entries = JournalEntry.objects.filter(transaction=existing)
+            merchant_entry = entries.filter(entry_type='CREDIT', account__name=f"Earnings_{merchant.id}").first()
+            fee_entry = entries.filter(entry_type='CREDIT', account__name="Platform_Fees").first()
+            return {
+                "reference_id": reference_id,
+                "total": str(existing.amount),
+                "merchant_earns": str(merchant_entry.amount) if merchant_entry else "0",
+                "platform_fee": str(fee_entry.amount) if fee_entry else "0",
+                "idempotent": True,
+            }
+
         fee_pct = merchant.platform_fee_percent / Decimal('100')
         fee_amount = (amount * fee_pct).quantize(Decimal('0.01'))
         merchant_amount = amount - fee_amount
@@ -43,10 +57,7 @@ class SplitEngine:
 
     @staticmethod
     def merchant_withdraw(merchant: Merchant, reference_id: str) -> dict:
-        """
-        Merchant withdraws available earnings. Moves liability to zero.
-        In production this would also call M-Pesa B2C API.
-        """
+        """Merchant withdraws available earnings. Moves liability to zero."""
         earnings_acc = Account.objects.get(name=f"Earnings_{merchant.id}")
         amount = earnings_acc.balance
         if amount <= 0:
@@ -69,19 +80,41 @@ class SplitEngine:
 
     @staticmethod
     def merchant_dashboard(merchant: Merchant) -> dict:
-        """Returns user-friendly dashboard data for a merchant."""
+        """User-friendly dashboard for a merchant."""
         try:
             earnings = Account.objects.get(name=f"Earnings_{merchant.id}")
             pool = Account.objects.get(name=f"Pool_{merchant.id}")
         except Account.DoesNotExist:
-            return {"business": merchant.business_name, "total_sales": "0.00", "available": "0.00", "fees_paid": "0.00"}
+            return {"business": merchant.business_name, "total_sales": "0.00", "available": "0.00", "fees_paid": "0.00", "currency": "KES", "ledger_balanced": True}
 
         fee_acc = Account.objects.get(name="Platform_Fees")
         total_sales = pool.balance + earnings.balance
+
+        # Balance verification
+        total_debits = JournalEntry.objects.aggregate(s=Sum('amount', filter=Q(entry_type='DEBIT')))['s'] or Decimal('0')
+        total_credits = JournalEntry.objects.aggregate(s=Sum('amount', filter=Q(entry_type='CREDIT')))['s'] or Decimal('0')
+        balanced = total_debits == total_credits
+
         return {
             "business": merchant.business_name,
             "total_sales": str(total_sales),
             "available": str(earnings.balance),
             "fees_paid": str(fee_acc.balance),
             "currency": "KES",
+            "ledger_balanced": balanced,
+        }
+
+    @staticmethod
+    def verify_ledger() -> dict:
+        """Full system health check — prove every cent is accounted for."""
+        total_debits = JournalEntry.objects.aggregate(s=Sum('amount', filter=Q(entry_type='DEBIT')))['s'] or Decimal('0')
+        total_credits = JournalEntry.objects.aggregate(s=Sum('amount', filter=Q(entry_type='CREDIT')))['s'] or Decimal('0')
+        account_sum = Account.objects.aggregate(s=Sum('balance'))['s'] or Decimal('0')
+        return {
+            "total_debits": str(total_debits),
+            "total_credits": str(total_credits),
+            "balanced": total_debits == total_credits,
+            "account_balance_sum": str(account_sum),
+            "transaction_count": Transaction.objects.count(),
+            "entry_count": JournalEntry.objects.count(),
         }

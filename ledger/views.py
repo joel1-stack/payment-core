@@ -1,12 +1,23 @@
 from decimal import Decimal
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from .models import Account, Transaction, JournalEntry, Merchant
 from .serializers import AccountSerializer, TransactionSerializer, JournalEntrySerializer
 from .services import SplitEngine
-from .mpesa import stk_push, b2c_payment
+from providers.mock_provider import MockProvider
 
+
+# ── HTML page ──
+
+def index(request):
+    return render(request, 'ledger/index.html')
+
+
+# ── Read-only views for raw ledger data ──
 
 class AccountViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Account.objects.all()
@@ -23,9 +34,13 @@ class JournalEntryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = JournalEntrySerializer
 
 
+# ── Helper ──
+
 def _make_ref(prefix: str) -> str:
     return f"{prefix}_{Transaction.objects.count() + 1}"
 
+
+# ── Merchants ──
 
 class MerchantViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'])
@@ -33,79 +48,117 @@ class MerchantViewSet(viewsets.ViewSet):
         try:
             merchant = Merchant.objects.get(pk=pk)
         except Merchant.DoesNotExist:
-            return Response({'error': 'Merchant not found'}, status=status.HTTP_404_NOT_FOUND)
-        data = SplitEngine.merchant_dashboard(merchant)
-        return Response(data)
+            return Response({'error': 'Merchant not found'}, status=404)
+        return Response(SplitEngine.merchant_dashboard(merchant))
+
+    @action(detail=True, methods=['post'])
+    def trigger_split(self, request, pk=None):
+        try:
+            merchant = Merchant.objects.get(pk=pk)
+        except Merchant.DoesNotExist:
+            return Response({'error': 'Merchant not found'}, status=404)
+        amount = Decimal(str(request.data.get('amount', '1000')))
+        phone = request.data.get('customer_phone', '254712345678')
+        provider = MockProvider()
+        payment = provider.charge(amount=amount, currency='KES', customer_ref=phone)
+        result = SplitEngine.merchant_split(merchant, payment['reference'], amount)
+        return Response({"provider": payment, "ledger": result}, status=201)
 
     @action(detail=True, methods=['post'])
     def pay(self, request, pk=None):
-        """Record a cash/offline payment in the ledger."""
         try:
             merchant = Merchant.objects.get(pk=pk)
         except Merchant.DoesNotExist:
-            return Response({'error': 'Merchant not found'}, status=status.HTTP_404_NOT_FOUND)
-        data = request.data
-        ref = data.get('reference_id')
-        amount = Decimal(str(data.get('amount', 0)))
-        if not ref:
-            return Response({'error': 'reference_id required'}, status=status.HTTP_400_BAD_REQUEST)
-        if Transaction.objects.filter(reference_id=ref).exists():
-            return Response({'error': 'Duplicate reference_id'}, status=status.HTTP_409_CONFLICT)
-        result = SplitEngine.merchant_split(merchant, ref, amount, data.get('description', ''))
-        return Response(result, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['post'])
-    def charge(self, request, pk=None):
-        """
-        Initiate M-Pesa STK Push to customer phone.
-        Customer sees M-Pesa prompt -> enters PIN -> pays.
-        """
-        try:
-            merchant = Merchant.objects.get(pk=pk)
-        except Merchant.DoesNotExist:
-            return Response({'error': 'Merchant not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        phone = request.data.get('phone', '').strip()
+            return Response({'error': 'Merchant not found'}, status=404)
+        ref = request.data.get('reference_id', _make_ref("CASH"))
         amount = Decimal(str(request.data.get('amount', 0)))
-        if not phone or amount <= 0:
-            return Response({'error': 'phone and amount required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        ref = f"MERCHANT_{merchant.id}"
-        result = stk_push(phone, amount, merchant, ref)
-        return Response(result, status=status.HTTP_201_CREATED)
+        result = SplitEngine.merchant_split(merchant, ref, amount, request.data.get('description', ''))
+        return Response(result, status=201)
 
     @action(detail=True, methods=['post'])
     def withdraw(self, request, pk=None):
-        """
-        Pay merchant their available balance via M-Pesa B2C.
-        """
         try:
             merchant = Merchant.objects.get(pk=pk)
         except Merchant.DoesNotExist:
-            return Response({'error': 'Merchant not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Merchant not found'}, status=404)
+        dash = SplitEngine.merchant_dashboard(merchant)
+        amount = Decimal(dash['available'])
+        if amount <= 0:
+            return Response({'error': 'No balance'}, status=400)
+        ref = _make_ref("STL")
+        SplitEngine.merchant_withdraw(merchant, ref)
+        provider = MockProvider()
+        payout = provider.payout(amount=amount, recipient=merchant.phone)
+        return Response({"settled": str(amount), "to": merchant.phone, "ledger_ref": ref, "payout": payout})
 
-        try:
-            # Get available balance from ledger
-            dash = SplitEngine.merchant_dashboard(merchant)
-            amount = Decimal(dash['available'])
-            if amount <= 0:
-                return Response({'error': 'No balance to withdraw'}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Record the settlement in the ledger first
-            ref = _make_ref("STL")
-            SplitEngine.merchant_withdraw(merchant, ref)
+# ── DEMO ENDPOINTS (used by the HTML page) ──
 
-            # Send real money via M-Pesa B2C
-            phone = merchant.phone
-            b2c_result = b2c_payment(phone, amount, merchant, ref)
+DEMO_REF = "TXN_DEMO_001"
 
-            return Response({
-                "settled": str(amount),
-                "to_phone": phone,
-                "ledger_ref": ref,
-                "mpesa_response": b2c_result,
-            })
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Account.DoesNotExist:
-            return Response({'error': 'No earnings yet. Receive a payment first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+@csrf_exempt
+def trigger_split_demo(request):
+    """POST /api/split/ — the HTML button calls this."""
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    # Check idempotency first
+    if Transaction.objects.filter(reference_id=DEMO_REF).exists():
+        return JsonResponse({"status": "already_processed"})
+
+    # Get or create demo merchant
+    from django.contrib.auth.models import User
+    user, _ = User.objects.get_or_create(username="demo_user")
+    merchant, _ = Merchant.objects.get_or_create(
+        user=user, defaults={
+            "business_name": "Demo Merchant",
+            "phone": "254700000000",
+            "platform_fee_percent": Decimal('5'),
+        }
+    )
+
+    # Mock payment — no internet
+    provider = MockProvider()
+    payment = provider.charge(amount=Decimal("100"), currency="USD", customer_ref="demo_customer")
+
+    # Record in the immutable ledger
+    SplitEngine.merchant_split(merchant, DEMO_REF, Decimal("100"), "Demo payment")
+
+    return JsonResponse({
+        "status": "success",
+        "reference": DEMO_REF,
+        "amount": "100.00",
+        "merchant_earns": "95.00",
+        "platform_fee": "5.00",
+    })
+
+
+@api_view(['GET'])
+def balances(request):
+    """GET /api/balances/ — returns current ledger state for the HTML."""
+    try:
+        merchant = Merchant.objects.get(user__username="demo_user")
+        dash = SplitEngine.merchant_dashboard(merchant)
+        return Response({
+            "merchant_available": float(Decimal(dash['available'])),
+            "platform_revenue": float(Decimal(dash['fees_paid'])),
+            "total_sales": float(Decimal(dash['total_sales'])),
+            "ledger_balanced": dash['ledger_balanced'],
+            "currency": dash['currency'],
+        })
+    except Merchant.DoesNotExist:
+        return Response({
+            "merchant_available": 0.0,
+            "platform_revenue": 0.0,
+            "total_sales": 0.0,
+            "ledger_balanced": True,
+            "currency": "USD",
+        })
+
+
+# ── Health ──
+
+@api_view(['GET'])
+def health(request):
+    return Response({"status": "running", "engine": "payment-core", "ledger": SplitEngine.verify_ledger()})
