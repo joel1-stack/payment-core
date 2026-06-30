@@ -10,7 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -130,3 +134,12 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
 }
+
+# ─── M-Pesa Daraja API ───────────────────
+MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "sandbox_key")
+MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "sandbox_secret")
+MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "sandbox_passkey")
+MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "174379")
+MPESA_INITIATOR = os.getenv("MPESA_INITIATOR", "testapi")
+MPESA_SECURITY_CRED = os.getenv("MPESA_SECURITY_CRED", "")
+BASE_URL = os.getenv("BASE_URL", "https://your-ngrok-url.ngrok.io")

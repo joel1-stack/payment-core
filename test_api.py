@@ -1,4 +1,6 @@
-"""Test the live API endpoints."""
+"""
+Hit the live merchant API to see the full flow.
+"""
 import urllib.request, json
 
 BASE = "http://127.0.0.1:8000/api"
@@ -14,38 +16,11 @@ def req(method, path, data=None):
     except urllib.error.HTTPError as e:
         return {"error": e.code, "body": e.read().decode()}
 
-# 1. List accounts
-print("=== Accounts ===")
-accounts = req("GET", "/accounts/")
-print(json.dumps(accounts, indent=2))
-
-# 2. Do a payment split: KES 2000, 90% shop, 10% platform
-print("\n=== Split Payment KES 2000 ===")
-split = req("POST", "/payments/split/", {
-    "reference_id": "MPESA_002",
-    "amount": "2000",
-    "pool_account": "M-Pesa Pool",
-    "rules": [
-        {"account_name": "Shop Earnings", "percentage": "90", "account_type": "LIABILITY"},
-        {"account_name": "Platform Fee", "percentage": "10", "account_type": "REVENUE"},
-    ],
-    "description": "Test payment"
-})
-print(json.dumps(split, indent=2))
-
-# 3. List transactions
-print("\n=== Transactions ===")
-txns = req("GET", "/transactions/")
-print(json.dumps(txns, indent=2))
-
-# 4. List journal entries
-print("\n=== Journal Entries ===")
-entries = req("GET", "/entries/")
-print(json.dumps(entries, indent=2))
-
-# 5. Show final balances
-print("\n=== Final Balances ===")
-accounts = req("GET", "/accounts/")
-print(json.dumps(accounts, indent=2))
-
-print("\n[OK] API works end-to-end")
+# Create a merchant via django admin won't work here, so we use the test run.
+# Instead, hit the existing endpoints.
+print("=== Existing Accounts ===")
+print(json.dumps(req("GET", "/accounts/"), indent=2)[:500])
+print("\n=== Existing Transactions ===")
+print(json.dumps(req("GET", "/transactions/"), indent=2)[:500])
+print("\n=== Existing Journal Entries ===")
+print(json.dumps(req("GET", "/entries/"), indent=2)[:500])
